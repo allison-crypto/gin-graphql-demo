@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"gin-graphql-demo/config"
+	"gin-graphql-demo/routes"
 	"net/http"
 	"time"
 
@@ -10,25 +12,19 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Config for server
-type Config struct {
-	Mode string
-	Port int
-}
-
 // Server with gin framework
 type Server struct {
-	Config
 	httpServer *http.Server
 }
 
 // Run to start a gin server
 func (server *Server) Run() {
+	gin.SetMode(config.System.Mode)
 	app := gin.Default()
-	// routes.MountRoutes(app)
+	routes.MountRoutes(app)
 
 	server.httpServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", server.Config.Port),
+		Addr:    fmt.Sprintf(":%d", config.System.Port),
 		Handler: app,
 	}
 
