@@ -1,36 +1,106 @@
 package main
 
 import (
-	"flag"
-	"os"
-	"os/signal"
-	"syscall"
+	"context"
+	"net/http"
 
-	"gin-graphql-demo/config"
-	"gin-graphql-demo/server"
-
-	"github.com/sirupsen/logrus"
+	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/graphql/graphiql"
+	"github.com/samsarahq/thunder/graphql/introspection"
+	"github.com/samsarahq/thunder/graphql/schemabuilder"
 )
 
+type Server struct {
+}
+
+type RoleType int32
+type User struct {
+	Id        int
+	FirstName string
+	LastName  string
+	Role      RoleType
+}
+
+func (s *Server) registerUser(schema *schemabuilder.Schema) {
+	object := schema.Object("User", User{})
+	object.Key("id")
+
+	object.FieldFunc("fullName", func(u *User) string {
+		return u.FirstName + " " + u.LastName
+	})
+}
+
+type Args struct {
+	Role *RoleType
+}
+
+func (s *Server) registerQuery(schema *schemabuilder.Schema) {
+	object := schema.Query()
+
+	var tmp RoleType
+	schema.Enum(tmp, map[string]RoleType{
+		"user":          RoleType(1),
+		"manager":       RoleType(2),
+		"administrator": RoleType(3),
+	})
+
+	userListRet := func(ctx context.Context, args Args) ([]*User, error) {
+		return []*User{
+			{
+				Id:        1,
+				FirstName: "Bob",
+				LastName:  "Johnson",
+				Role:      RoleType(1),
+			},
+			{
+				Id:        2,
+				FirstName: "Chloe",
+				LastName:  "Kim",
+				Role:      RoleType(1),
+			},
+		}, nil
+	}
+
+	object.FieldFunc("users", userListRet)
+
+	object.FieldFunc("usersConnection", userListRet, schemabuilder.Paginated)
+
+}
+
+func (s *Server) registerMutation(schema *schemabuilder.Schema) {
+	object := schema.Mutation()
+
+	object.FieldFunc("echo", func(ctx context.Context, args struct{ Text string }) (string, error) {
+		return args.Text, nil
+	})
+
+	object.FieldFunc("echoEnum", func(ctx context.Context, args struct {
+		EnumField RoleType
+	}) (RoleType, error) {
+		return args.EnumField, nil
+	})
+}
+
+func (s *Server) Schema() *graphql.Schema {
+	schema := schemabuilder.NewSchema()
+
+	s.registerUser(schema)
+	s.registerQuery(schema)
+	s.registerMutation(schema)
+
+	return schema.MustBuild()
+}
+
 func main() {
-	var configPath string
+	server := &Server{}
+	graphqlSchema := server.Schema()
+	introspection.AddIntrospectionToSchema(graphqlSchema)
 
-	//监听程序退出信号
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM, syscall.SIGTSTP, syscall.SIGQUIT)
+	http.Handle("/graphql2", graphql.HTTPHandler(graphqlSchema))
+	http.Handle("/graphql", graphql.Handler(graphqlSchema))
+	http.Handle("/graphiql/", http.StripPrefix("/graphiql/", graphiql.Handler()))
 
-	//解析flag
-	flag.StringVar(&configPath, "c", "./", "config file path")
-	flag.Parse()
-
-	config.InitConfig(configPath)
-	logrus.Infof("%+v \n", config.C)
-
-	server := server.Server{Config: config.C.Server}
-	server.Run()
-
-	logrus.Infoln("application started port -> ", config.C.Server.Port)
-
-	<-stop
-	server.Shutdown()
+	if err := http.ListenAndServe(":3000", nil); err != nil {
+		panic(err)
+	}
 }
