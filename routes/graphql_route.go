@@ -24,7 +24,7 @@ func mountGraphqlRoutes(rg *gin.RouterGroup) {
 		}
 		result := graphql.Do(graphql.Params{
 			Context:        ctx.Request.Context(),
-			Schema:         schemas.StarWarsSchema,
+			Schema:         schemas.TestSchema,
 			RequestString:  body.Query,
 			VariableValues: body.Variables,
 			OperationName:  body.Operation,

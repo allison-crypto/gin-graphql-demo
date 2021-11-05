@@ -5,6 +5,7 @@ go 1.17
 require (
 	github.com/gin-gonic/gin v1.7.4
 	github.com/graphql-go/graphql v0.8.0
+	github.com/imdario/mergo v0.3.12
 	github.com/sirupsen/logrus v1.8.1
 )
 
