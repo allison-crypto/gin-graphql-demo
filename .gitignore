@@ -25,6 +25,3 @@ db/
 __debug_bin
 
 .DS_Store
-
-test.log
-test.sh
